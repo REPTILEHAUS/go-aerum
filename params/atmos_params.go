@@ -1,7 +1,9 @@
 package params
 
 import (
+	"fmt"
 	"github.com/AERUMTechnology/go-aerum/common"
+	"github.com/newrelic/go-agent"
 	"math/big"
 )
 
@@ -14,8 +16,18 @@ var (
 	atmosEpochInterval       = uint64(1000)
 	atmosGasLimit            = uint64(25000000)
 	atmosEthereumRPCProvider = "https://rinkeby.infura.io"
-	atmosBlockRewards = big.NewInt(0.487e+18)
+	atmosBlockRewards        = big.NewInt(0.487e+18)
+	newRelicConf             = newrelic.NewConfig("AERUM DevOps PerfTest", "eu01xxe6ae057f56aa929046cace86e2a078ee83")
 )
+
+// NewRelicConf ... exportable config for new relic
+func NewRelicConf() newrelic.Application {
+	app, err := newrelic.NewApplication(newRelicConf)
+	if err != nil {
+		fmt.Println(fmt.Printf("New relic init issue: %s", err))
+	}
+	return app
+}
 
 func NewAtmosMinDelegateNo() int {
 	return atmosMinDelegateNo
@@ -26,7 +38,7 @@ func NewAtmosNetID() int {
 }
 
 func NewAtmosGovernanceAddress() common.Address {
-	return common.HexToAddress( atmosGovernanceAddress )
+	return common.HexToAddress(atmosGovernanceAddress)
 }
 
 func NewAtmosBlockInterval() uint64 {
@@ -49,7 +61,6 @@ func NewAtmosBlockRewards() *big.Int {
 	return atmosBlockRewards
 }
 
-
 func NewAerumPreAlloc() map[string]string {
 	aerumPreAlloc := map[string]string{
 		"52c47938be22aab6f22b6608d9fe7f1e42aa8c61": "50000000000000000000000000",
@@ -58,6 +69,6 @@ func NewAerumPreAlloc() map[string]string {
 		"827720d8c7d3bab2566eee1ecc2207139dfb25af": "10000000000000000000000000",
 		"8a3eefdbf626ae336272a379bddeb8dcad91d07b": "10000000000000000000000000",
 		"b65b8c2376293fea13f6ed7d2a8467f0949c312d": "10000000000000000000000000",
-	}	
+	}
 	return aerumPreAlloc
 }

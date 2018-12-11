@@ -32,6 +32,7 @@ import (
 	"github.com/AERUMTechnology/go-aerum/log"
 	"github.com/AERUMTechnology/go-aerum/metrics"
 	"github.com/AERUMTechnology/go-aerum/params"
+
 	"gopkg.in/karalabe/cookiejar.v2/collections/prque"
 )
 
@@ -145,12 +146,12 @@ var DefaultTxPoolConfig = TxPoolConfig{
 	Rejournal: time.Hour,
 
 	PriceLimit: 1,
-	PriceBump:  10,
+	PriceBump:  10 * 2,
 
 	AccountSlots: 16,
-	GlobalSlots:  4096,
-	AccountQueue: 64,
-	GlobalQueue:  1024,
+	GlobalSlots:  4096 * 2,
+	AccountQueue: 64 * 2,
+	GlobalQueue:  1024 * 2,
 
 	Lifetime: 3 * time.Hour,
 }
@@ -432,6 +433,10 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 
 // Stop terminates the transaction pool.
 func (pool *TxPool) Stop() {
+
+	txn := params.NewRelicConf().StartTransaction("Stop() func", nil, nil)
+	defer txn.End()
+
 	// Unsubscribe all subscriptions registered from txpool
 	pool.scope.Close()
 
@@ -448,6 +453,7 @@ func (pool *TxPool) Stop() {
 // SubscribeNewTxsEvent registers a subscription of NewTxsEvent and
 // starts sending event to the given channel.
 func (pool *TxPool) SubscribeNewTxsEvent(ch chan<- NewTxsEvent) event.Subscription {
+
 	return pool.scope.Track(pool.txFeed.Subscribe(ch))
 }
 
@@ -524,6 +530,10 @@ func (pool *TxPool) Content() (map[common.Address]types.Transactions, map[common
 // account and sorted by nonce. The returned transaction set is a copy and can be
 // freely modified by calling code.
 func (pool *TxPool) Pending() (map[common.Address]types.Transactions, error) {
+
+	txn := params.NewRelicConf().StartTransaction("Pending() func", nil, nil)
+	defer txn.End()
+
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
@@ -538,6 +548,10 @@ func (pool *TxPool) Pending() (map[common.Address]types.Transactions, error) {
 // account and sorted by nonce. The returned transaction set is a copy and can be
 // freely modified by calling code.
 func (pool *TxPool) local() map[common.Address]types.Transactions {
+
+	txn := params.NewRelicConf().StartTransaction("local() func", nil, nil)
+	defer txn.End()
+
 	txs := make(map[common.Address]types.Transactions)
 	for addr := range pool.locals.accounts {
 		if pending := pool.pending[addr]; pending != nil {
@@ -553,6 +567,10 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
+
+	txn := params.NewRelicConf().StartTransaction("validateTx() func", nil, nil)
+	defer txn.End()
+
 	// Heuristic limit, reject transactions over 32KB to prevent DOS attacks
 	if tx.Size() > 32*1024 {
 		return ErrOversizedData
@@ -604,6 +622,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 // whitelisted, preventing any associated transaction from being dropped out of
 // the pool due to pricing constraints.
 func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
+
+	txn := params.NewRelicConf().StartTransaction("add() func", nil, nil)
+	defer txn.End()
+
 	// If the transaction is already known, discard it
 	hash := tx.Hash()
 	if pool.all.Get(hash) != nil {
@@ -677,6 +699,10 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 //
 // Note, this method assumes the pool lock is held!
 func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, error) {
+
+	txn := params.NewRelicConf().StartTransaction("add() func", nil, nil)
+	defer txn.End()
+
 	// Try to insert the transaction into the future queue
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
@@ -704,6 +730,9 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction) (bool, er
 // journalTx adds the specified transaction to the local disk journal if it is
 // deemed to have been sent from a local account.
 func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
+
+	txn := params.NewRelicConf().StartTransaction("journalTx() func", nil, nil)
+	defer txn.End()
 	// Only journal if it's enabled and the transaction is local
 	if pool.journal == nil || !pool.locals.contains(from) {
 		return
@@ -718,6 +747,10 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 //
 // Note, this method assumes the pool lock is held!
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
+
+	txn := params.NewRelicConf().StartTransaction("promoteTx() func", nil, nil)
+	defer txn.End()
+
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
 		pool.pending[addr] = newTxList(true)
@@ -904,6 +937,10 @@ func (pool *TxPool) removeTx(hash common.Hash, outofbound bool) {
 // future queue to the set of pending transactions. During this process, all
 // invalidated transactions (low nonce, low balance) are deleted.
 func (pool *TxPool) promoteExecutables(accounts []common.Address) {
+
+	txn := params.NewRelicConf().StartTransaction("promoteExecutables() func", nil, nil)
+	defer txn.End()
+
 	// Track the promoted transactions to broadcast them at once
 	var promoted []*types.Transaction
 
@@ -1080,6 +1117,10 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) {
 // executable/pending queue and any subsequent transactions that become unexecutable
 // are moved back into the future queue.
 func (pool *TxPool) demoteUnexecutables() {
+
+	txn := params.NewRelicConf().StartTransaction("demoteUnexecutables() func", nil, nil)
+	defer txn.End()
+
 	// Iterate over all accounts and demote any non-executable transactions
 	for addr, list := range pool.pending {
 		nonce := pool.currentState.GetNonce(addr)

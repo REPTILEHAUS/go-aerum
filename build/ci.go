@@ -195,6 +195,9 @@ func doInstall(cmdline []string) {
 	}
 	// Compile packages given as arguments, or everything if there are no arguments.
 	packages := []string{"./..."}
+
+	build.MustRun(goTool("get", "github.com/newrelic/go-agent"))
+
 	if flag.NArg() > 0 {
 		packages = flag.Args()
 	}
